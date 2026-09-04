@@ -22,19 +22,28 @@ package emfilter
 //
 //	handle(Body, Memory) -> {Result, NewMemory}
 //
-// Handle is called for every query frame received from em_disco.
-// memory starts as an empty map and persists across queries within a connection.
-// On reconnect the memory is reset to an empty map (same as Erlang ram mode).
+// Handle is called for every query the agent receives — a POST to
+// /agent/query under Model A (direct), or a WS "query" frame relayed by a
+// disco under Model B (relay, the default). memory starts as an empty map
+// and persists across queries within a connection/server lifetime. On
+// reconnect (Model B) the memory is reset to an empty map (same as Erlang
+// ram mode).
 type Filter interface {
 	// Handle processes an incoming query.
 	// body is the raw query string.
 	// memory is the current memory state (empty map on first call).
-	// Returns the result (JSON-serialisable), the new memory state, and any error.
-	// On error, the SDK sends null as the result and continues.
+	// Returns the result (JSON-serialisable, typically a []map[string]any of
+	// embryo items), the new memory state, and any error. The result is
+	// signed with the agent's ed25519 key (see crypto.go) before being sent
+	// back as {"results":..., "signer_id":..., "signature":...}.
+	// On error, the SDK replies with a 500 (Model A) or an empty signed
+	// result (Model B) and continues.
 	Handle(body string, memory map[string]any) (result any, newMemory map[string]any, err error)
 
-	// Capabilities returns the list of capabilities announced in agent_hello.
-	// em_disco uses these to route queries.
-	// Default implementations should return at least ["search", "query"].
+	// Capabilities returns the list of capabilities this agent advertises
+	// (plain strings only — the disco computes the routing vector from
+	// them; see spec §5). Advertised in the Model B "hello" frame and the
+	// Model A gossip payload. Default implementations should return at
+	// least ["search", "query"].
 	Capabilities() []string
 }
