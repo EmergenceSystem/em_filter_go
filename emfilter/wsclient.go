@@ -111,11 +111,12 @@ func (c *RelayClient) session() error {
 			items = result
 		}
 
-		signerID, sig := c.Identity.SignResults(normalizeResults(items))
+		ts, signerID, sig := c.Identity.SignResultsV2(body, normalizeResults(items))
 		if err := conn.WriteJSON(map[string]any{
 			"action":    "result",
 			"id":        qid,
 			"results":   items,
+			"ts":        ts,
 			"signer_id": signerID,
 			"signature": sig,
 		}); err != nil {

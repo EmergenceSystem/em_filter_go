@@ -35,7 +35,7 @@ type Filter interface {
 	// Returns the result (JSON-serialisable, typically a []map[string]any of
 	// embryo items), the new memory state, and any error. The result is
 	// signed with the agent's ed25519 key (see crypto.go) before being sent
-	// back as {"results":..., "signer_id":..., "signature":...}.
+	// back as {"results":..., "ts":..., "signer_id":..., "signature":...}.
 	// On error, the SDK replies with a 500 (Model A) or an empty signed
 	// result (Model B) and continues.
 	Handle(body string, memory map[string]any) (result any, newMemory map[string]any, err error)

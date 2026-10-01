@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 )
 
 // Identity holds an agent's ed25519 keypair, name, and advertised
@@ -92,4 +94,25 @@ func (id *Identity) GossipPayload(host string, queryPort int) map[string]any {
 // the Model B "result" WS frame.
 func (id *Identity) SignResults(items []any) (signerID string, signature string) {
 	return SignResponse(items, id.Pubkey, id.Seed)
+}
+
+// SignResultsV2 signs items bound to the received query and a fresh
+// millisecond timestamp (v2 response signing). It returns the ts that MUST
+// be emitted alongside signer_id/signature so the verifier can rebuild
+// CanonicalResponseV2(query, ts, items).
+func (id *Identity) SignResultsV2(query string, items []any) (ts int64, signerID string, signature string) {
+	ts = time.Now().UnixMilli()
+	signerID, signature = SignResponseV2(query, ts, items, id.Pubkey, id.Seed)
+	return ts, signerID, signature
+}
+
+// GossipHeaders returns the x-pop-id / x-pop-ts / x-pop-sig headers that
+// authenticate an outbound /pop/gossip POST, computed over the exact body.
+func (id *Identity) GossipHeaders(body []byte) map[string]string {
+	ts := time.Now().UnixMilli()
+	return map[string]string{
+		"x-pop-id":  id.IDB64(),
+		"x-pop-ts":  strconv.FormatInt(ts, 10),
+		"x-pop-sig": SignGossip(id.ID, ts, body, id.Seed),
+	}
 }

@@ -85,7 +85,11 @@ func TestRelayClientHelloQueryResult(t *testing.T) {
 			t.Error("signer_id does not match identity id")
 		}
 		items, _ := result["results"].([]any)
-		if !emfilter.Verify(emfilter.CanonicalResponse(items), sig, ident.Pubkey) {
+		ts, ok := result["ts"].(float64)
+		if !ok || ts <= 0 {
+			t.Fatalf("missing ts in result frame: %+v", result)
+		}
+		if !emfilter.Verify(emfilter.CanonicalResponseV2("hi", int64(ts), items), sig, ident.Pubkey) {
 			t.Error("result signature does not verify")
 		}
 	case <-time.After(3 * time.Second):

@@ -46,6 +46,7 @@ func TestAgentQuerySigned(t *testing.T) {
 		Results   []any  `json:"results"`
 		SignerID  string `json:"signer_id"`
 		Signature string `json:"signature"`
+		Ts        int64  `json:"ts"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -61,8 +62,8 @@ func TestAgentQuerySigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode signature: %v", err)
 	}
-	if !emfilter.Verify(emfilter.CanonicalResponse(out.Results), sig, ident.Pubkey) {
-		t.Error("response signature does not verify")
+	if out.Ts <= 0 || !emfilter.Verify(emfilter.CanonicalResponseV2("hi", out.Ts, out.Results), sig, ident.Pubkey) {
+		t.Error("v2 response signature does not verify")
 	}
 }
 

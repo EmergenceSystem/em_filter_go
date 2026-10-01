@@ -128,9 +128,10 @@ func (s *AgentServer) handleAgentQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := normalizeResults(result)
-	signerID, sig := s.Identity.SignResults(items)
+	ts, signerID, sig := s.Identity.SignResultsV2(query, items)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"results":   result,
+		"ts":        ts,
 		"signer_id": signerID,
 		"signature": sig,
 	})
@@ -254,7 +255,16 @@ func (p *GossipPusher) PushOnce() {
 	}
 	for _, seed := range p.Seeds {
 		url := strings.TrimRight(seed, "/") + "/pop/gossip"
-		resp, err := p.client.Post(url, "application/json", bytes.NewReader(b))
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
+		if err != nil {
+			log.Printf("[em_filter] gossip push to %s failed: %v", seed, err)
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+		for k, v := range p.Identity.GossipHeaders(b) {
+			req.Header.Set(k, v)
+		}
+		resp, err := p.client.Do(req)
 		if err != nil {
 			log.Printf("[em_filter] gossip push to %s failed: %v", seed, err)
 			continue
