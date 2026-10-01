@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // keyFileName is the on-disk key file name, matching the Erlang em_pop_crypto
@@ -92,6 +93,52 @@ func Verify(msg, sig, pub []byte) bool {
 func SignResponse(items []any, pub, seed []byte) (signerID string, signature string) {
 	sig := Sign(CanonicalResponse(items), seed)
 	return base64.StdEncoding.EncodeToString(IDOf(pub)), base64.StdEncoding.EncodeToString(sig)
+}
+
+// CanonicalResponseV2 builds the v2 byte form that binds a response signature
+// to the query and a timestamp, preventing replay of a signed response against
+// a different query: utf8(query) ‖ 0x00 ‖ ascii(decimal(ts)) ‖ 0x00 ‖
+// CanonicalResponse(items). ts is a unix time in milliseconds.
+func CanonicalResponseV2(query string, ts int64, items []any) []byte {
+	cr := CanonicalResponse(items)
+	tsb := strconv.AppendInt(nil, ts, 10)
+	out := make([]byte, 0, len(query)+1+len(tsb)+1+len(cr))
+	out = append(out, query...)
+	out = append(out, 0)
+	out = append(out, tsb...)
+	out = append(out, 0)
+	out = append(out, cr...)
+	return out
+}
+
+// SignResponseV2 signs CanonicalResponseV2(query, ts, items) and returns the
+// on-wire signer_id (base64 of IDOf(pub)) and signature (base64 of the ed25519
+// sig).
+func SignResponseV2(query string, ts int64, items []any, pub, seed []byte) (signerID string, signature string) {
+	sig := Sign(CanonicalResponseV2(query, ts, items), seed)
+	return base64.StdEncoding.EncodeToString(IDOf(pub)), base64.StdEncoding.EncodeToString(sig)
+}
+
+// CanonicalGossipAuth builds the byte form signed to authenticate a gossip
+// request: id ‖ 0x00 ‖ ascii(decimal(ts)) ‖ 0x00 ‖ bodyHash, where bodyHash is
+// SHA-256 of the request body and ts is a unix time in milliseconds.
+func CanonicalGossipAuth(id []byte, ts int64, bodyHash []byte) []byte {
+	tsb := strconv.AppendInt(nil, ts, 10)
+	out := make([]byte, 0, len(id)+1+len(tsb)+1+len(bodyHash))
+	out = append(out, id...)
+	out = append(out, 0)
+	out = append(out, tsb...)
+	out = append(out, 0)
+	out = append(out, bodyHash...)
+	return out
+}
+
+// SignGossip hashes body with SHA-256, signs CanonicalGossipAuth(id, ts, hash)
+// and returns the base64 ed25519 signature.
+func SignGossip(id []byte, ts int64, body, seed []byte) string {
+	h := sha256.Sum256(body)
+	sig := Sign(CanonicalGossipAuth(id, ts, h[:]), seed)
+	return base64.StdEncoding.EncodeToString(sig)
 }
 
 // LoadOrCreate loads the ed25519 keypair from <keyDir>/node_ed25519.key,
